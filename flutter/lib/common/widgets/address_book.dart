@@ -1,5 +1,6 @@
 import 'dart:math';
 
+import 'package:bot_toast/bot_toast.dart';
 import 'package:dropdown_button2/dropdown_button2.dart';
 import 'package:dynamic_layouts/dynamic_layouts.dart';
 import 'package:flutter/material.dart';
@@ -241,14 +242,15 @@ class _AddressBookState extends State<AddressBook> {
                 bind.setLocalFlutterOption(k: kOptionCurrentAbName, v: value);
               }
             },
-      customButton: Obx(()=>Container(
-        height: stateGlobal.isPortrait.isFalse ? 48 : 40,
-        child: Row(children: [
-          Expanded(
-              child: buildItem(gFFI.abModel.currentName.value, button: true)),
-          Icon(Icons.arrow_drop_down),
-        ]),
-      )),
+      customButton: Obx(() => Container(
+            height: stateGlobal.isPortrait.isFalse ? 48 : 40,
+            child: Row(children: [
+              Expanded(
+                  child:
+                      buildItem(gFFI.abModel.currentName.value, button: true)),
+              Icon(Icons.arrow_drop_down),
+            ]),
+          )),
       underline: Container(
         height: 0.7,
         color: Theme.of(context).dividerColor.withOpacity(0.1),
@@ -284,7 +286,7 @@ class _AddressBookState extends State<AddressBook> {
                 borderRadius: BorderRadius.circular(8),
               ),
             ),
-          ),
+          ).workaroundFreezeLinuxMint(),
         ),
         searchMatchFn: (item, searchValue) {
           return item.value
@@ -315,13 +317,14 @@ class _AddressBookState extends State<AddressBook> {
 
   Widget _buildTags() {
     return Obx(() {
-      final List tags;
+      List tags;
       if (gFFI.abModel.sortTags.value) {
         tags = gFFI.abModel.currentAbTags.toList();
         tags.sort();
       } else {
-        tags = gFFI.abModel.currentAbTags;
+        tags = gFFI.abModel.currentAbTags.toList();
       }
+      tags = [kUntagged, ...tags].toList();
       final editPermission = gFFI.abModel.current.canWrite();
       tagBuilder(String e) {
         return AddressBookTag(
@@ -358,7 +361,6 @@ class _AddressBookState extends State<AddressBook> {
           alignment: Alignment.topLeft,
           child: AddressBookPeersView(
             menuPadding: widget.menuPadding,
-            getInitPeers: () => gFFI.abModel.currentAbPeers,
           )),
     );
   }
@@ -509,19 +511,19 @@ class _AddressBookState extends State<AddressBook> {
 
       row({required Widget lable, required Widget input}) {
         makeChild(bool isPortrait) => Row(
-          children: [
-            !isPortrait
-                ? ConstrainedBox(
-                    constraints: const BoxConstraints(minWidth: 100),
-                    child: lable.marginOnly(right: 10))
-                : SizedBox.shrink(),
-            Expanded(
-              child: ConstrainedBox(
-                  constraints: const BoxConstraints(minWidth: 200),
-                  child: input),
-            ),
-          ],
-        ).marginOnly(bottom: !isPortrait ? 8 : 0);
+              children: [
+                !isPortrait
+                    ? ConstrainedBox(
+                        constraints: const BoxConstraints(minWidth: 100),
+                        child: lable.marginOnly(right: 10))
+                    : SizedBox.shrink(),
+                Expanded(
+                  child: ConstrainedBox(
+                      constraints: const BoxConstraints(minWidth: 200),
+                      child: input),
+                ),
+              ],
+            ).marginOnly(bottom: !isPortrait ? 8 : 0);
         return Obx(() => makeChild(stateGlobal.isPortrait.isTrue));
       }
 
@@ -546,23 +548,28 @@ class _AddressBookState extends State<AddressBook> {
                       ],
                     ),
                     input: Obx(() => TextField(
-                      controller: idController,
-                      inputFormatters: [IDTextInputFormatter()],
-                      decoration: InputDecoration(
-                          labelText: stateGlobal.isPortrait.isFalse ? null : translate('ID'),
-                          errorText: errorMsg,
-                          errorMaxLines: 5),
-                    ))),
+                          controller: idController,
+                          inputFormatters: [IDTextInputFormatter()],
+                          decoration: InputDecoration(
+                              labelText: stateGlobal.isPortrait.isFalse
+                                  ? null
+                                  : translate('ID'),
+                              errorText: errorMsg,
+                              errorMaxLines: 5),
+                        ).workaroundFreezeLinuxMint())),
                 row(
                   lable: Text(
                     translate('Alias'),
                     style: style,
                   ),
                   input: Obx(() => TextField(
-                      controller: aliasController,
-                      decoration: InputDecoration(
-                        labelText: stateGlobal.isPortrait.isFalse ? null : translate('Alias'),
-                      ),)),
+                        controller: aliasController,
+                        decoration: InputDecoration(
+                          labelText: stateGlobal.isPortrait.isFalse
+                              ? null
+                              : translate('Alias'),
+                        ),
+                      ).workaroundFreezeLinuxMint()),
                 ),
                 if (isCurrentAbShared)
                   row(
@@ -570,25 +577,29 @@ class _AddressBookState extends State<AddressBook> {
                         translate('Password'),
                         style: style,
                       ),
-                      input: Obx(() => TextField(
-                        controller: passwordController,
-                        obscureText: !passwordVisible,
-                        decoration: InputDecoration(
-                          labelText: stateGlobal.isPortrait.isFalse ? null : translate('Password'),
-                          suffixIcon: IconButton(
-                            icon: Icon(
-                                passwordVisible
-                                    ? Icons.visibility
-                                    : Icons.visibility_off,
-                                color: MyTheme.lightTheme.primaryColor),
-                            onPressed: () {
-                              setState(() {
-                                passwordVisible = !passwordVisible;
-                              });
-                            },
+                      input: Obx(
+                        () => TextField(
+                          controller: passwordController,
+                          obscureText: !passwordVisible,
+                          decoration: InputDecoration(
+                            labelText: stateGlobal.isPortrait.isFalse
+                                ? null
+                                : translate('Password'),
+                            suffixIcon: IconButton(
+                              icon: Icon(
+                                  passwordVisible
+                                      ? Icons.visibility
+                                      : Icons.visibility_off,
+                                  color: MyTheme.lightTheme.primaryColor),
+                              onPressed: () {
+                                setState(() {
+                                  passwordVisible = !passwordVisible;
+                                });
+                              },
+                            ),
                           ),
-                        ),
-                      ),)),
+                        ).workaroundFreezeLinuxMint(),
+                      )),
                 if (gFFI.abModel.currentAbTags.isNotEmpty)
                   Align(
                     alignment: Alignment.centerLeft,
@@ -660,6 +671,14 @@ class _AddressBookState extends State<AddressBook> {
         } else {
           final tags = field.trim().split(RegExp(r"[\s,;\n]+"));
           field = tags.join(',');
+          for (var t in [kUntagged, translate(kUntagged)]) {
+            if (tags.contains(t)) {
+              BotToast.showText(
+                  contentColor: Colors.red, text: 'Tag name cannot be "$t"');
+              isInProgress = false;
+              return;
+            }
+          }
           gFFI.abModel.addTags(tags);
           // final currentPeers
         }
@@ -685,7 +704,7 @@ class _AddressBookState extends State<AddressBook> {
                     ),
                     controller: controller,
                     autofocus: true,
-                  ),
+                  ).workaroundFreezeLinuxMint(),
                 ),
               ],
             ),
@@ -732,12 +751,14 @@ class AddressBookTag extends StatelessWidget {
     }
 
     const double radius = 8;
+    final isUnTagged = name == kUntagged;
+    final showAction = showActionMenu && !isUnTagged;
     return GestureDetector(
       onTap: onTap,
-      onTapDown: showActionMenu ? setPosition : null,
-      onSecondaryTapDown: showActionMenu ? setPosition : null,
-      onSecondaryTap: showActionMenu ? () => _showMenu(context, pos) : null,
-      onLongPress: showActionMenu ? () => _showMenu(context, pos) : null,
+      onTapDown: showAction ? setPosition : null,
+      onSecondaryTapDown: showAction ? setPosition : null,
+      onSecondaryTap: showAction ? () => _showMenu(context, pos) : null,
+      onLongPress: showAction ? () => _showMenu(context, pos) : null,
       child: Obx(() => Container(
             decoration: BoxDecoration(
                 color: tags.contains(name)
@@ -749,17 +770,18 @@ class AddressBookTag extends StatelessWidget {
             child: IntrinsicWidth(
               child: Row(
                 children: [
-                  Container(
-                    width: radius,
-                    height: radius,
-                    decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: tags.contains(name)
-                            ? Colors.white
-                            : gFFI.abModel.getCurrentAbTagColor(name)),
-                  ).marginOnly(right: radius / 2),
+                  if (!isUnTagged)
+                    Container(
+                      width: radius,
+                      height: radius,
+                      decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: tags.contains(name)
+                              ? Colors.white
+                              : gFFI.abModel.getCurrentAbTagColor(name)),
+                    ).marginOnly(right: radius / 2),
                   Expanded(
-                    child: Text(name,
+                    child: Text(isUnTagged ? translate(name) : name,
                         style: TextStyle(
                             overflow: TextOverflow.ellipsis,
                             color: tags.contains(name) ? Colors.white : null)),

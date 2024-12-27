@@ -281,15 +281,6 @@ pub fn close(id: i32) {
 }
 
 #[inline]
-#[cfg(target_os = "android")]
-pub fn notify_input_control(v: bool) {
-    for (_, mut client) in CLIENTS.write().unwrap().iter_mut() {
-        client.keyboard = v;
-        allow_err!(client.tx.send(Data::InputControl(v)));
-    }
-}
-
-#[inline]
 pub fn remove(id: i32) {
     CLIENTS.write().unwrap().remove(&id);
 }
@@ -310,6 +301,17 @@ pub fn switch_permission(id: i32, name: String, enabled: bool) {
     if let Some(client) = CLIENTS.read().unwrap().get(&id) {
         allow_err!(client.tx.send(Data::SwitchPermission { name, enabled }));
     };
+}
+
+#[inline]
+#[cfg(target_os = "android")]
+pub fn switch_permission_all(name: String, enabled: bool) {
+    for (_, client) in CLIENTS.read().unwrap().iter() {
+        allow_err!(client.tx.send(Data::SwitchPermission {
+            name: name.clone(),
+            enabled
+        }));
+    }
 }
 
 #[cfg(any(target_os = "android", target_os = "ios", feature = "flutter"))]
@@ -440,7 +442,7 @@ impl<T: InvokeUiCM> IpcTaskRunner<T> {
                                 Data::ClipboardFile(_clip) => {
                                     #[cfg(any(target_os = "windows", target_os="linux", target_os = "macos"))]
                                     {
-                                        let is_stopping_allowed = _clip.is_stopping_allowed_from_peer();
+                                        let is_stopping_allowed = _clip.is_beginning_message();
                                         let is_clipboard_enabled = ContextSend::is_enabled();
                                         let file_transfer_enabled = self.file_transfer_enabled;
                                         let stop = !is_stopping_allowed && !(is_clipboard_enabled && file_transfer_enabled);
@@ -512,6 +514,7 @@ impl<T: InvokeUiCM> IpcTaskRunner<T> {
                                                     width: c.width,
                                                     height: c.height,
                                                     format: c.format.value(),
+                                                    special_name: c.special_name,
                                                 });
                                             }
                                             allow_err!(self.stream.send(&Data::ClipboardNonFile(Some(("".to_owned(), main_data)))).await);
@@ -568,7 +571,12 @@ impl<T: InvokeUiCM> IpcTaskRunner<T> {
                             if stop {
                                 ContextSend::set_is_stopped();
                             } else {
-                                allow_err!(self.tx.send(Data::ClipboardFile(_clip)));
+                                if _clip.is_beginning_message() && crate::get_builtin_option(OPTION_ONE_WAY_FILE_TRANSFER) == "Y" {
+                                    // If one way file transfer is enabled, don't send clipboard file to client
+                                    // Don't call `ContextSend::set_is_stopped()`, because it will stop bidirectional file copy&paste.
+                                } else {
+                                    allow_err!(self.tx.send(Data::ClipboardFile(_clip)));
+                                }
                             }
                         }
                     }
@@ -734,6 +742,12 @@ async fn handle_fs(
     use hbb_common::fs::serialize_transfer_job;
 
     match fs {
+        ipc::FS::ReadEmptyDirs {
+            dir,
+            include_hidden,
+        } => {
+            read_empty_dirs(&dir, include_hidden, tx).await;
+        }
         ipc::FS::ReadDir {
             dir,
             include_hidden,
@@ -887,6 +901,26 @@ async fn handle_fs(
             rename_file(path, new_name, id, tx).await;
         }
         _ => {}
+    }
+}
+
+#[cfg(not(any(target_os = "ios")))]
+async fn read_empty_dirs(dir: &str, include_hidden: bool, tx: &UnboundedSender<Data>) {
+    let path = dir.to_owned();
+    let path_clone = dir.to_owned();
+
+    if let Ok(Ok(fds)) =
+        spawn_blocking(move || fs::get_empty_dirs_recursive(&path, include_hidden)).await
+    {
+        let mut msg_out = Message::new();
+        let mut file_response = FileResponse::new();
+        file_response.set_empty_dirs(ReadEmptyDirsResponse {
+            path: path_clone,
+            empty_dirs: fds,
+            ..Default::default()
+        });
+        msg_out.set_file_response(file_response);
+        send_raw(msg_out, tx);
     }
 }
 
